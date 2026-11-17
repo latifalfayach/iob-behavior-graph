@@ -24,7 +24,12 @@ def _get_doc():
             import streamlit as st
             if "GCP_SERVICE_ACCOUNT_JSON" in st.secrets:
                 try:
-                    info = json.loads(st.secrets["GCP_SERVICE_ACCOUNT_JSON"])
+                    info = json.loads(st.secrets["GCP_SERVICE_ACCOUNT_JSON"], strict=False)
+                    # Sla7 dyal private_key mn TOML escaping:
+                    pk = info["private_key"].replace("\\n", "\n").strip()
+                    if not pk.endswith("\n"):
+                        pk += "\n"
+                    info["private_key"] = pk
                     creds = Credentials.from_service_account_info(info, scopes=SCOPES)
                 except Exception as e:
                     raise RuntimeError(
