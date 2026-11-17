@@ -17,18 +17,13 @@ _doc = None
 def _get_doc():
     global _doc
     if _doc is None:
-        import json
         import streamlit as st
-
-        if "GCP_SERVICE_ACCOUNT_JSON" in st.secrets:
-            raw = st.secrets["GCP_SERVICE_ACCOUNT_JSON"]
-            info = json.loads(raw, strict=False) if isinstance(raw, str) else dict(raw)
-            # N-sll7ou l-newlines dyal private_key kifma jathom TOML:
-            info["private_key"] = info["private_key"].replace("\\n", "\n")
-            creds = Credentials.from_service_account_info(info, scopes=SCOPES)
+        if "gcp_service_account" in st.secrets:
+            creds = Credentials.from_service_account_info(
+                dict(st.secrets["gcp_service_account"]), scopes=SCOPES
+            )
         else:
             creds = Credentials.from_service_account_file(CREDENTIALS_FILE, scopes=SCOPES)
-
         client = gspread.authorize(creds)
         _doc = client.open_by_key(SHEET_ID)
     return _doc
