@@ -23,13 +23,8 @@ def _get_doc():
             import streamlit as st
             if "gcp_service_account" in st.secrets:
                 info = dict(st.secrets["gcp_service_account"])
-                pk = info.get("private_key", "")
-                st.write("DEBUG keys:", list(info.keys()))
-                st.write("DEBUG pk repr:", repr(pk[:45]), "...", repr(pk[-45:]))
-                info["private_key"] = pk.replace("\\n", "\n")
+                info["private_key"] = info["private_key"].replace("\\n", "\n")
                 creds = Credentials.from_service_account_info(info, scopes=SCOPES)
-            else:
-                st.write("DEBUG st.secrets keys:", list(st.secrets.keys()))
         except ModuleNotFoundError:
             pass
         if creds is None:
