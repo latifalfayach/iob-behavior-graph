@@ -17,30 +17,19 @@ _doc = None
 def _get_doc():
     global _doc
     if _doc is None:
-        import json
         import os
         creds = None
         try:
             import streamlit as st
-            if "GCP_SERVICE_ACCOUNT_JSON" in st.secrets:
-                try:
-                    info = json.loads(st.secrets["GCP_SERVICE_ACCOUNT_JSON"], strict=False)
-                    # Sla7 dyal private_key mn TOML escaping:
-                    pk = info["private_key"].replace("\\n", "\n").strip()
-                    if not pk.endswith("\n"):
-                        pk += "\n"
-                    info["private_key"] = pk
-                    creds = Credentials.from_service_account_info(info, scopes=SCOPES)
-                except Exception as e:
-                    raise RuntimeError(
-                        f"GCP_SERVICE_ACCOUNT_JSON exists but could not be parsed: {e}")
+            if "gcp_service_account" in st.secrets:
+                creds = Credentials.from_service_account_info(
+                    dict(st.secrets["gcp_service_account"]), scopes=SCOPES
+                )
         except ModuleNotFoundError:
-            pass  # not running inside Streamlit (local scripts)
+            pass
         if creds is None:
             if not os.path.exists(CREDENTIALS_FILE):
-                raise FileNotFoundError(
-                    "No credentials found. Cloud: set GCP_SERVICE_ACCOUNT_JSON in app "
-                    "secrets. Local: put service_account.json in the secrets/ folder.")
+                raise FileNotFoundError("No credentials found.")
             creds = Credentials.from_service_account_file(CREDENTIALS_FILE, scopes=SCOPES)
         client = gspread.authorize(creds)
         _doc = client.open_by_key(SHEET_ID)
