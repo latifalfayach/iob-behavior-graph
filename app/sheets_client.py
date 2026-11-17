@@ -18,16 +18,28 @@ def _get_doc():
     global _doc
     if _doc is None:
         import json
+        import os
+        creds = None
         try:
             import streamlit as st
-            info = json.loads(st.secrets["GCP_SERVICE_ACCOUNT_JSON"])
-            creds = Credentials.from_service_account_info(info, scopes=SCOPES)
-        except Exception:
+            if "GCP_SERVICE_ACCOUNT_JSON" in st.secrets:
+                try:
+                    info = json.loads(st.secrets["GCP_SERVICE_ACCOUNT_JSON"])
+                    creds = Credentials.from_service_account_info(info, scopes=SCOPES)
+                except Exception as e:
+                    raise RuntimeError(
+                        f"GCP_SERVICE_ACCOUNT_JSON exists but could not be parsed: {e}")
+        except ModuleNotFoundError:
+            pass  # not running inside Streamlit (local scripts)
+        if creds is None:
+            if not os.path.exists(CREDENTIALS_FILE):
+                raise FileNotFoundError(
+                    "No credentials found. Cloud: set GCP_SERVICE_ACCOUNT_JSON in app "
+                    "secrets. Local: put service_account.json in the secrets/ folder.")
             creds = Credentials.from_service_account_file(CREDENTIALS_FILE, scopes=SCOPES)
         client = gspread.authorize(creds)
         _doc = client.open_by_key(SHEET_ID)
     return _doc
-
 
 def load_users():
     """Return list of user_ids from the 'users' tab."""
