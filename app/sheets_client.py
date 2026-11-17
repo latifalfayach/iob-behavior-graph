@@ -17,25 +17,16 @@ _doc = None
 def _get_doc():
     global _doc
     if _doc is None:
+        import base64
+        import json
         import os
-        import re
         creds = None
         try:
             import streamlit as st
-            if "gcp_service_account" in st.secrets:
-                info = dict(st.secrets["gcp_service_account"])
-                raw_pk = info["private_key"].replace("\\n", "\n")
-                body = re.sub(r"-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s+", "", raw_pk)
-                lines = [body[i:i+64] for i in range(0, len(body), 64)]
-                info["private_key"] = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(lines) + "\n-----END PRIVATE KEY-----\n"
-                try:
-                    creds = Credentials.from_service_account_info(info, scopes=SCOPES)
-                except Exception:
-                    import traceback
-                    st.text(traceback.format_exc())
-                    raise
-            else:
-                st.text(f"SECRETS KEYS FOUND: {list(st.secrets.keys())}")
+            if "GCP_SA_B64" in st.secrets:
+                raw = base64.b64decode(st.secrets["GCP_SA_B64"]).decode("utf-8")
+                info = json.loads(raw)
+                creds = Credentials.from_service_account_info(info, scopes=SCOPES)
         except ModuleNotFoundError:
             pass
         if creds is None:
