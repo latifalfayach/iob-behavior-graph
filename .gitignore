@@ -1,0 +1,6 @@
+secrets/
+*.pem
+__pycache__/
+.env
+reminder.log
+reminder_err.log
