@@ -17,12 +17,12 @@ _doc = None
 def _get_doc():
     global _doc
     if _doc is None:
-        import streamlit as st
-        if "gcp_service_account" in st.secrets:
-            creds = Credentials.from_service_account_info(
-                dict(st.secrets["gcp_service_account"]), scopes=SCOPES
-            )
-        else:
+        import json
+        try:
+            import streamlit as st
+            info = json.loads(st.secrets["GCP_SERVICE_ACCOUNT_JSON"])
+            creds = Credentials.from_service_account_info(info, scopes=SCOPES)
+        except Exception:
             creds = Credentials.from_service_account_file(CREDENTIALS_FILE, scopes=SCOPES)
         client = gspread.authorize(creds)
         _doc = client.open_by_key(SHEET_ID)
