@@ -25,16 +25,17 @@ def _get_doc():
             if "gcp_service_account" in st.secrets:
                 info = dict(st.secrets["gcp_service_account"])
                 raw_pk = info["private_key"].replace("\\n", "\n")
-                # N-7yydo header/footer w ay espace wla \r wla \xa0, w n-3awdo n-qssmoha b 64 chars:
                 body = re.sub(r"-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s+", "", raw_pk)
                 lines = [body[i:i+64] for i in range(0, len(body), 64)]
                 info["private_key"] = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(lines) + "\n-----END PRIVATE KEY-----\n"
                 try:
                     creds = Credentials.from_service_account_info(info, scopes=SCOPES)
-                except Exception as e:
+                except Exception:
                     import traceback
-                    st.code(traceback.format_exc())
+                    st.text(traceback.format_exc())
                     raise
+            else:
+                st.text(f"SECRETS KEYS FOUND: {list(st.secrets.keys())}")
         except ModuleNotFoundError:
             pass
         if creds is None:
