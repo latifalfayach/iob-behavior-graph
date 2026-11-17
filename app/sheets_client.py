@@ -23,6 +23,8 @@ def _get_doc():
         if "GCP_SERVICE_ACCOUNT_JSON" in st.secrets:
             raw = st.secrets["GCP_SERVICE_ACCOUNT_JSON"]
             info = json.loads(raw, strict=False) if isinstance(raw, str) else dict(raw)
+            # N-sll7ou l-newlines dyal private_key kifma jathom TOML:
+            info["private_key"] = info["private_key"].replace("\\n", "\n")
             creds = Credentials.from_service_account_info(info, scopes=SCOPES)
         else:
             creds = Credentials.from_service_account_file(CREDENTIALS_FILE, scopes=SCOPES)
