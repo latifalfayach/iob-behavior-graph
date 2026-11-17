@@ -18,12 +18,15 @@ def _get_doc():
     global _doc
     if _doc is None:
         import json
-        try:
-            import streamlit as st
-            info = json.loads(st.secrets["GCP_SERVICE_ACCOUNT_JSON"])
+        import streamlit as st
+
+        if "GCP_SERVICE_ACCOUNT_JSON" in st.secrets:
+            raw = st.secrets["GCP_SERVICE_ACCOUNT_JSON"]
+            info = json.loads(raw, strict=False) if isinstance(raw, str) else dict(raw)
             creds = Credentials.from_service_account_info(info, scopes=SCOPES)
-        except Exception:
+        else:
             creds = Credentials.from_service_account_file(CREDENTIALS_FILE, scopes=SCOPES)
+
         client = gspread.authorize(creds)
         _doc = client.open_by_key(SHEET_ID)
     return _doc
