@@ -12,6 +12,7 @@ import sheets_client
 INACTIVITY_MIN = 12       # gentle check-in appears after this many quiet minutes
 AUTOREFRESH_MS = 60_000   # page quietly refreshes once a minute (no push needed)
 N_SUGGESTIONS = 3         # "What's next?" shows this many likely activities
+PWA_URL = "https://latifalfayach.github.io/iob-behavior-graph/"
 
 STORY_VERBS = {
     "wake_up": "You woke up", "phone_bed": "Checked your phone",
@@ -72,6 +73,7 @@ if st.session_state.user_id is None:
         st.caption("We'll create an anonymous ID for you — no name, no personal info.")
         if st.button("✨ Create my ID", use_container_width=True):
             st.session_state.user_id = sheets_client.create_user()
+            st.session_state.just_created = True
             st.rerun()
     else:
         if not users:
@@ -85,6 +87,26 @@ if st.session_state.user_id is None:
 
 user_id = st.session_state.user_id
 st.caption(f"Your anonymous ID: **{user_id}**")
+
+# One-time setup screen: offer reminder setup with the ID pre-linked
+if st.session_state.get("just_created"):
+    st.markdown(f"## 🎉 Welcome, {user_id}!")
+    st.write("Your anonymous ID is ready. One last **optional** step — "
+             "get a gentle reminder if your morning goes quiet:")
+    st.link_button("🔔 Enable gentle reminders",
+                   f"{PWA_URL}?id={user_id}",
+                   use_container_width=True)
+    st.caption("📱 iPhone: on the page that opens, tap **Share → Add to Home Screen** first, "
+               "then tap Enable. Your ID is already filled in — no typing needed.")
+    if st.button("🌅 Continue to the app", type="primary", use_container_width=True):
+        st.session_state.just_created = False
+        st.rerun()
+    st.stop()
+
+with st.expander("🔔 Not getting reminders yet?"):
+    st.link_button("Enable gentle reminders",
+                   f"{PWA_URL}?id={user_id}",
+                   use_container_width=True)
 
 # Load today's data once per participant (survives page refreshes)
 if st.session_state.get("loaded_for") != user_id:

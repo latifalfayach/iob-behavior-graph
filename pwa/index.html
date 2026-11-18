@@ -19,7 +19,7 @@
 </head>
 <body>
   <h1>☀️ Morning Companion</h1>
-  <p class="hint">Enter your anonymous participant ID (e.g. U001), enable reminders, then open the app.</p>
+  <p class="hint">Your ID is already filled in — just tap Enable and allow notifications.</p>
   <input id="uid" placeholder="Your ID — e.g. U001">
   <button class="primary" onclick="enablePush()">🔔 Enable gentle reminders</button>
   <button onclick="location.href='https://iob-behavior-graph-ehfisophxqtinrgvxsxryr.streamlit.app/'">🌅 Open the app</button>
@@ -27,6 +27,18 @@
   <p class="hint">📱 iPhone: tap Share → <b>Add to Home Screen</b> first, then enable reminders.</p>
 
 <script>
+// Pre-fill the ID from the Streamlit handoff (?id=U001) or a previous visit.
+// localStorage covers the iOS "Add to Home Screen" flow, which can drop the query param.
+(function () {
+  const fromUrl = new URLSearchParams(window.location.search).get("id");
+  const saved = localStorage.getItem("participant_id");
+  const pid = (fromUrl || saved || "").trim().toUpperCase();
+  const input = document.getElementById("uid");
+  if (pid && input) {
+    input.value = pid;
+    localStorage.setItem("participant_id", pid);
+  }
+})();
 const VAPID_PUBLIC_KEY = "BC7Mhlxj7HjsRsHxD5H2R3cyfCcMDtN4kQDA2nbnG2ZfKsEHyShND9kRFmhg89JQFTFu2HP5Jcxx7FaHEoJ6wh8";
 const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbym5AIaUBdu1dQhiAFkf0kOj5Ovc0T1yQpHjrS5doK1Vgu5EcN7wVL8ZjgN57xm3tdr/exec";
 
