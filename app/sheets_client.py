@@ -29,6 +29,10 @@ def _get_doc():
                 creds = Credentials.from_service_account_info(info, scopes=SCOPES)
         except Exception:
             pass
+        if creds is None and os.environ.get("GCP_SA_B64"):
+            raw = base64.b64decode(os.environ["GCP_SA_B64"]).decode("utf-8")
+            info = json.loads(raw)
+            creds = Credentials.from_service_account_info(info, scopes=SCOPES)
         if creds is None:
             if not os.path.exists(CREDENTIALS_FILE):
                 raise FileNotFoundError("No credentials found.")
