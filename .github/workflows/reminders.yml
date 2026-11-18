@@ -23,13 +23,16 @@ jobs:
 
       - name: Restore secrets
         env:
-          GCP_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          GCP_B64: ${{ secrets.GCP_SA_B64 }}
           VAPID_PEM: ${{ secrets.VAPID_PRIVATE_KEY }}
         run: |
           mkdir -p secrets
-          printf '%s\n' "$GCP_JSON" > secrets/service_account.json
+          python -c "import os, base64; open('secrets/service_account.json','wb').write(base64.b64decode(os.environ['GCP_B64']))"
           printf '%s\n' "$VAPID_PEM" > secrets/private_key.pem
-
+          
       - name: Run reminder check
         working-directory: app
+        env:
+          GCP_SA_B64: ${{ secrets.GCP_SA_B64 }}
         run: python reminder_checker.py
+      
