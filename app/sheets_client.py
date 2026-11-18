@@ -27,7 +27,7 @@ def _get_doc():
                 raw = base64.b64decode(st.secrets["GCP_SA_B64"]).decode("utf-8")
                 info = json.loads(raw)
                 creds = Credentials.from_service_account_info(info, scopes=SCOPES)
-        except ModuleNotFoundError:
+        except Exception:
             pass
         if creds is None:
             if not os.path.exists(CREDENTIALS_FILE):
