@@ -9,5 +9,5 @@ self.addEventListener("push", (e) => {
 
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
-  e.waitUntil(clients.openWindow(e.notification.data.url || "https://latifalfayach.github.io/morning-companion/"));
+  e.waitUntil(clients.openWindow(e.notification.data.url || "https://iob-behavior-graph-ehfisophxqtinrgvxsxryr.streamlit.app/"));
 });
