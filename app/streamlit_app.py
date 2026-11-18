@@ -12,7 +12,7 @@ import sheets_client
 INACTIVITY_MIN = 12       # gentle check-in appears after this many quiet minutes
 AUTOREFRESH_MS = 60_000   # page quietly refreshes once a minute (no push needed)
 N_SUGGESTIONS = 3         # "What's next?" shows this many likely activities
-PWA_URL = "https://latifalfayach.github.io/iob-behavior-graph/"
+PWA_URL = "https://latifalfayach.github.io/iob-behavior-graph/pwa/"
 
 STORY_VERBS = {
     "wake_up": "You woke up", "phone_bed": "Checked your phone",
