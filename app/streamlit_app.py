@@ -22,6 +22,7 @@ STORY_VERBS = {
     "news_social": "News / social media", "prep_bag": "Prepared your bag",
     "meditate": "Meditation / reading", "leave_home": "Left home",
     "commute": "Commute", "arrive_work": "Arrived at work",
+    "staying_home": "Stayed home today",
 }
 
 st.set_page_config(page_title="Morning Companion", page_icon="🌅")
@@ -98,7 +99,7 @@ if st.session_state.get("just_created"):
                    use_container_width=True)
     st.caption("📱 iPhone: on the page that opens, tap **Share → Add to Home Screen** first, "
                "then tap Enable. Your ID is already filled in — no typing needed.")
-    if st.button("🌅 Continue to the app", type="primary", use_container_width=True):
+    if st.button("🌅 Continue to the app", use_container_width=True):
         st.session_state.just_created = False
         st.rerun()
     st.stop()
@@ -142,12 +143,19 @@ def log_activity(activity_id):
     chain.append(event)
 
 
-def finish_morning():
-    if chain and chain[-1].get("activity_id") != "arrive_work":
-        log_activity("arrive_work")
-    if len(chain) < 3:
+END_IDS = {a["id"] for a in ACTIVITIES if a["category"] == "end"}
+
+def finish_morning(end_activity):
+    already_ended = bool(chain and chain[-1].get("activity_id") in END_IDS)
+    min_needed = 3 if already_ended else 2
+
+    if len(chain) < min_needed:
         st.toast("Log a few activities first 🌱")
         return
+
+    if not already_ended:
+        log_activity(end_activity)
+
     t0, t1 = parse_ts(chain[0]["ts_utc"]), parse_ts(chain[-1]["ts_utc"])
     row = {
         "session_id": f"{user_id}_{today}",
@@ -225,7 +233,10 @@ else:
 
     # What's next? — a few likely activities, not the whole taxonomy
     done_ids = {e["activity_id"] for e in chain}
-    remaining = [a for a in ACTIVITIES if a["id"] not in done_ids and a["id"] != "wake_up"]
+    remaining = [a for a in ACTIVITIES
+             if a["id"] not in done_ids
+             and a["id"] != "wake_up"
+             and a["category"] != "end"]
     st.markdown("#### What's next?")
     for act in remaining[:N_SUGGESTIONS]:
         st.button(f"{act['icon']}  {act['label']}", key=f"next_{act['id']}",
@@ -233,8 +244,11 @@ else:
     with st.expander("＋ Something else"):
         activity_grid(remaining[N_SUGGESTIONS:], "more")
 
-    st.button("🏢  I'm at work", type="primary",
-              use_container_width=True, on_click=finish_morning)
+    end_col1, end_col2 = st.columns(2)
+    with end_col1:
+        st.button("🏢  I'm at work", use_container_width=True, on_click=finish_morning, args=("arrive_work",))
+    with end_col2:
+        st.button("🏠  Staying home today", use_container_width=True, on_click=finish_morning, args=("staying_home",))
 
     # Journey
     st.markdown("---")

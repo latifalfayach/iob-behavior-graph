@@ -14,6 +14,7 @@ ACTIVITIES = [
     {"id": "leave_home",  "label": "Leave home",             "icon": "🚪", "category": "transition"},
     {"id": "commute",     "label": "Commute",                "icon": "🚌", "category": "transition"},
     {"id": "arrive_work", "label": "Arrive at work/school",  "icon": "🏢", "category": "end"},
+    {"id": "staying_home", "label": "Staying home today",   "icon": "🏠", "category": "end"},
 ]
 
 ACTIVITY_BY_ID = {a["id"]: a for a in ACTIVITIES}
