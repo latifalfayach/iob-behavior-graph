@@ -7,12 +7,14 @@ from streamlit_autorefresh import st_autorefresh
 
 from activities import ACTIVITIES, ACTIVITY_BY_ID
 import sheets_client
+from streamlit_local_storage import LocalStorage
 
 # ---------------- config ----------------
 INACTIVITY_MIN = 12       # gentle check-in appears after this many quiet minutes
 AUTOREFRESH_MS = 60_000   # page quietly refreshes once a minute (no push needed)
 N_SUGGESTIONS = 3         # "What's next?" shows this many likely activities
 PWA_URL = "https://latifalfayach.github.io/iob-behavior-graph/pwa/"
+
 
 STORY_VERBS = {
     "wake_up": "You woke up", "phone_bed": "Checked your phone",
@@ -57,37 +59,79 @@ def parse_ts(value):
         return None
 
 
-# ---------------- participant (auto-ID, no personal info) ----------------
+# ---------------- participant (device-linked ID, no public list) ----------------
 try:
     users = sheets_client.load_users()
 except Exception as e:
     st.error(f"Could not connect to Google Sheets: {e}")
     st.stop()
 
+localS = LocalStorage()
+stored_id = (localS.getItem("participant_id") or "").strip().upper()
+
 if "user_id" not in st.session_state:
     st.session_state.user_id = None
 
+# Admin/testing escape hatch: ?reset=1 unlinks this device
+if st.query_params.get("reset") == "1":
+    localS.setItem("participant_id", "")
+    st.session_state.user_id = None
+    st.query_params.clear()
+    st.rerun()
+
+qp_id = (st.query_params.get("id", "") or "").strip().upper()
+
+# A personal link for a DIFFERENT ID is rejected on a linked device
+if qp_id and stored_id and qp_id != stored_id:
+    st.warning(f"🔒 This device is already linked to **{stored_id}** — "
+               f"the ID **{qp_id}** isn't associated with this device.")
+    qp_id = ""
+
+# 1) Device already linked -> automatic login
+if st.session_state.user_id is None and stored_id:
+    if stored_id in users:
+        st.session_state.user_id = stored_id
+        st.rerun()
+    else:
+        st.error(f"Your saved ID {stored_id} was not found — please contact the researcher.")
+
+# 2) Personal link on an unlinked device -> login + link this device
+if st.session_state.user_id is None and qp_id:
+    if qp_id in users:
+        st.session_state.user_id = qp_id
+        localS.setItem("participant_id", qp_id)
+        st.rerun()
+    else:
+        st.error(f"ID {qp_id} not found — check your personal link, or log in below.")
+
+# 3) First-ever visit on this device: create a new ID or type an existing one
 if st.session_state.user_id is None:
     st.markdown("## ☀️ Welcome to Morning Companion")
     choice = st.radio("Are you…", ["A new participant", "A returning participant"])
     if choice == "A new participant":
         st.caption("We'll create an anonymous ID for you — no name, no personal info.")
         if st.button("✨ Create my ID", use_container_width=True):
-            st.session_state.user_id = sheets_client.create_user()
+            new_id = sheets_client.create_user()
+            localS.setItem("participant_id", new_id)
+            st.session_state.user_id = new_id
             st.session_state.just_created = True
             st.rerun()
     else:
         if not users:
             st.info("No participants yet — choose 'A new participant'.")
         else:
-            sel = st.selectbox("Pick your ID", users)
+            typed = st.text_input("Your ID", placeholder="e.g. U001").strip().upper()
             if st.button("Continue", use_container_width=True):
-                st.session_state.user_id = sel
-                st.rerun()
+                if typed in users:
+                    localS.setItem("participant_id", typed)
+                    st.session_state.user_id = typed
+                    st.rerun()
+                else:
+                    st.error("ID not found — check the spelling, or choose 'A new participant'.")
     st.stop()
 
 user_id = st.session_state.user_id
-st.caption(f"Your anonymous ID: **{user_id}**")
+st.caption(f"🔒 This device is linked to **{user_id}**")
 
 # One-time setup screen: offer reminder setup with the ID pre-linked
 if st.session_state.get("just_created"):
