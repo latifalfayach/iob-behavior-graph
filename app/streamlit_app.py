@@ -10,7 +10,7 @@ import sheets_client
 from streamlit_local_storage import LocalStorage
 
 # ---------------- config ----------------
-INACTIVITY_MIN = 12       # gentle check-in appears after this many quiet minutes
+INACTIVITY_MIN = 1       # gentle check-in appears after this many quiet minutes
 AUTOREFRESH_MS = 60_000   # page quietly refreshes once a minute (no push needed)
 N_SUGGESTIONS = 3         # "What's next?" shows this many likely activities
 PWA_URL = "https://latifalfayach.github.io/iob-behavior-graph/pwa/"
