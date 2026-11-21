@@ -2,7 +2,7 @@ name: morning-reminders
 
 on:
   schedule:
-    - cron: "* 19 * * *"      # koul dqiqa f 19:xx UTC (l-waqt dyal daba)
+    - cron: "*/5 * * * *"   
   workflow_dispatch:
 
 jobs:
