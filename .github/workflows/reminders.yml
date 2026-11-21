@@ -1,8 +1,13 @@
 name: morning-reminders
 
+#on:
+  #schedule:
+    #- cron: "*/10 5-13 * * *"   # every 10 min, 05:00-13:00 UTC = 06:00-14:00 (UTC+1)
+  #workflow_dispatch:            # lets you run it manually for testing
+
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "* 19 * * *"      # koul dqiqa f 19:xx UTC (l-waqt dyal daba)
   workflow_dispatch:
 
 jobs:
@@ -29,9 +34,10 @@ jobs:
           mkdir -p secrets
           python -c "import os, base64; open('secrets/service_account.json','wb').write(base64.b64decode(os.environ['GCP_B64']))"
           printf '%s\n' "$VAPID_PEM" > secrets/private_key.pem
-
+          
       - name: Run reminder check
         working-directory: app
         env:
           GCP_SA_B64: ${{ secrets.GCP_SA_B64 }}
         run: python reminder_checker.py
+      
