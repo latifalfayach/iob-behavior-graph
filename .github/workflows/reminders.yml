@@ -1,14 +1,9 @@
 name: morning-reminders
 
-#on:
-  #schedule:
-    #- cron: "*/10 5-13 * * *"   # every 10 min, 05:00-13:00 UTC = 06:00-14:00 (UTC+1)
-  #workflow_dispatch:            # lets you run it manually for testing
-
 on:
   schedule:
-    - cron: "* 19 * * *"      # koul dqiqa f 19:xx UTC (l-waqt dyal daba)
-  workflow_dispatch:
+    - cron: "*/10 5-13 * * *"   # every 10 min, 05:00-13:00 UTC = 06:00-14:00 (UTC+1)
+  workflow_dispatch:            # lets you run it manually for testing
 
 jobs:
   remind:
