@@ -212,8 +212,8 @@ def finish_morning(end_activity):
 
     if not already_ended:
         log_activity(end_activity)
-
-    t0, t1 = parse_ts(chain[0]["ts_utc"]), parse_ts(chain[-1]["ts_utc"])
+    today_chain = [e for e in chain if str(e.get("session_date", "")) == today] or chain
+    t0, t1 = parse_ts(today_chain[0]["ts_utc"]), parse_ts(today_chain[-1]["ts_utc"])
     row = {
         "session_id": f"{user_id}_{today}",
         "user_id": user_id,

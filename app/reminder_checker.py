@@ -37,6 +37,9 @@ def next_deadline():
         prev = str(row.get("last_reminder_utc", "") or "")
         if prev:
             try:  # respect the anti-spam interval
+                prev_dt = datetime.fromisoformat(prev)
+                if prev_dt.tzinfo is None:
+                    prev_dt = prev_dt.replace(tzinfo=timezone.utc)
                 deadline = max(deadline,
                                datetime.fromisoformat(prev) + timedelta(minutes=REMIND_EVERY_MIN))
             except Exception:
@@ -59,6 +62,8 @@ def check():
             continue                                   # morning not started
         try:
             last_ts = datetime.fromisoformat(str(events[-1]["ts_utc"]))
+            if last_ts.tzinfo is None:
+                last_ts = last_ts.replace(tzinfo=timezone.utc)
         except Exception:
             continue
         silent = now - last_ts
@@ -67,6 +72,9 @@ def check():
         prev = str(row.get("last_reminder_utc", "") or "")
         if prev:
             try:
+                prev_dt = datetime.fromisoformat(prev)
+                if prev_dt.tzinfo is None:
+                    prev_dt = prev_dt.replace(tzinfo=timezone.utc)
                 if now - datetime.fromisoformat(prev) < timedelta(minutes=REMIND_EVERY_MIN):
                     continue                           # don't nag
             except Exception:
@@ -77,7 +85,7 @@ def check():
                 data=json.dumps({
                     "title": "☀️ Quick check-in",
                     "body": "What are you up to? Tap to continue your morning 🌅",
-                    "url": APP_URL,
+                    "url": f"{APP_URL}?id={uid}",
                 }),
                 vapid_private_key=VAPID_PRIVATE,
                 vapid_claims=VAPID_CLAIMS.copy(),
