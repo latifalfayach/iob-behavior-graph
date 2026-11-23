@@ -72,7 +72,7 @@ stored_id = (localS.getItem("participant_id") or "").strip().upper()
 
 # Wait briefly for browser storage to load before offering any registration option.
 # On a linked device this finds the ID and the welcome screen never appears.
-if st.session_state.user_id is None and not stored_id:
+if st.session_state.get("user_id") is None and not stored_id:
     checks = st.session_state.get("ls_checks", 0)
     if checks < 2:
         st.session_state.ls_checks = checks + 1
