@@ -27,16 +27,24 @@
   <p class="hint">📱 iPhone: tap Share → <b>Add to Home Screen</b> first, then enable reminders.</p>
 
 <script>
-// Pre-fill the ID from the Streamlit handoff (?id=U001) or a previous visit.
-// localStorage covers the iOS "Add to Home Screen" flow, which can drop the query param.
+// Pre-fill the ID from the Streamlit handoff (?id=U001) or a previous visit,
+// and LOCK it if this device is already linked to a participant.
 (function () {
   const fromUrl = new URLSearchParams(window.location.search).get("id");
   const saved = localStorage.getItem("participant_id");
-  const pid = (fromUrl || saved || "").trim().toUpperCase();
   const input = document.getElementById("uid");
-  if (pid && input) {
-    input.value = pid;
-    localStorage.setItem("participant_id", pid);
+  if (saved) {
+    input.value = saved;
+    input.readOnly = true;
+    input.style.background = "#F3EDE3";
+    document.querySelector(".hint").textContent =
+      "🔒 This device is linked to " + saved + " — just tap Enable.";
+    if (fromUrl && fromUrl.toUpperCase() !== saved) {
+      document.getElementById("status").textContent =
+        "The ID " + fromUrl.toUpperCase() + " isn't associated with this device.";
+    }
+  } else if (fromUrl) {
+    input.value = fromUrl.toUpperCase();
   }
 })();
 const VAPID_PUBLIC_KEY = "BC7Mhlxj7HjsRsHxD5H2R3cyfCcMDtN4kQDA2nbnG2ZfKsEHyShND9kRFmhg89JQFTFu2HP5Jcxx7FaHEoJ6wh8";
@@ -52,6 +60,12 @@ async function enablePush() {
   const uid = document.getElementById("uid").value.trim().toUpperCase();
   const status = document.getElementById("status");
   if (!/^U\d{3}$/.test(uid)) { status.textContent = "Please enter a valid ID like U001"; return; }
+  const saved = localStorage.getItem("participant_id");
+  if (saved && uid !== saved) {
+    status.textContent = "🔒 This device is linked to " + saved +
+                         " — " + uid + " isn't associated with this device.";
+    return;
+  }
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
     status.textContent = "This browser doesn't support push reminders."; return;
   }
@@ -62,9 +76,31 @@ async function enablePush() {
     userVisibleOnly: true,
     applicationServerKey: b64ToUint8(VAPID_PUBLIC_KEY)
   });
-  await fetch(WEBHOOK_URL, { method: "POST", mode: "no-cors",
-    headers: {"Content-Type": "text/plain"},
-    body: JSON.stringify({ user_id: uid, subscription: sub.toJSON() }) });
+
+  try {
+    const res = await fetch(WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ user_id: uid, subscription: sub.toJSON() })
+    });
+    const reply = (await res.text()).trim();
+    if (reply === "endpoint_taken") {
+      status.textContent = "⚠️ This device is already linked to another participant ID.";
+      return;
+    }
+    if (reply !== "ok") {
+      status.textContent = "⚠️ Could not register (" + reply + ").";
+      return;
+    }
+  } catch (err) {
+    await fetch(WEBHOOK_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ user_id: uid, subscription: sub.toJSON() })
+    });
+  }
+  localStorage.setItem("participant_id", uid);
   status.textContent = "✅ Reminders enabled for " + uid + ". See you tomorrow morning!";
 }
 </script>
