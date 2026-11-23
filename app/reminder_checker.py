@@ -14,6 +14,36 @@ APP_URL = "https://iob-behavior-graph-ehfisophxqtinrgvxsxryr.streamlit.app/"   #
 VAPID_PRIVATE = "../secrets/private_key.pem"
 VAPID_CLAIMS = {"sub": "mailto:lfayach@gmail.com"}   # <-- your email
 
+def next_deadline():
+    """Earliest moment at which someone will become eligible for a check-in."""
+    now = datetime.now(timezone.utc)
+    deadlines = []
+    for row in sheets_client.get_push_subscriptions():
+        uid = str(row.get("user_id", "")).strip()
+        if not uid or sheets_client.load_today_session(uid):
+            continue
+        events = sheets_client.load_today_events(uid)
+        if not events:
+            continue
+        try:
+            last_ts = datetime.fromisoformat(str(events[-1]["ts_utc"]))
+            if last_ts.tzinfo is None:
+                last_ts = last_ts.replace(tzinfo=timezone.utc)
+        except Exception:
+            continue
+        if now - last_ts > timedelta(hours=GIVE_UP_AFTER_H):
+            continue
+        deadline = last_ts + timedelta(minutes=SILENCE_MIN)
+        prev = str(row.get("last_reminder_utc", "") or "")
+        if prev:
+            try:  # respect the anti-spam interval
+                deadline = max(deadline,
+                               datetime.fromisoformat(prev) + timedelta(minutes=REMIND_EVERY_MIN))
+            except Exception:
+                pass
+        deadlines.append(deadline)
+    return min(deadlines) if deadlines else None
+
 
 def check():
     now = datetime.now(timezone.utc)
@@ -61,12 +91,19 @@ def check():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--loop", action="store_true", help="repeat every 10 minutes")
+    parser.add_argument("--loop", action="store_true", help="run continuously (deadline-driven)")
     args = parser.parse_args()
     if args.loop:
-        print("Reminder service running (checks every 10 min). Ctrl+C to stop.")
+        print("Reminder service running (deadline-driven). Ctrl+C to stop.", flush=True)
         while True:
             check()
-            time.sleep(600)
+            wake = next_deadline()
+            if wake is None:
+                delay = 600                       # nobody mid-morning: rescan every 10 min
+            else:
+                delay = (wake - datetime.now(timezone.utc)).total_seconds()
+                delay = max(30, min(600, delay))  # clamp: 30 s .. 10 min
+            print(f"Next wake-up in {int(delay)} s", flush=True)
+            time.sleep(delay)
     else:
         check()
