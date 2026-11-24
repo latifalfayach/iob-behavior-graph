@@ -2,7 +2,7 @@
 import argparse
 import json
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 
 from pywebpush import webpush, WebPushException
 import sheets_client
@@ -13,6 +13,7 @@ GIVE_UP_AFTER_H = 4     # stop after this many hours of silence
 APP_URL = "https://iob-behavior-graph-ehfisophxqtinrgvxsxryr.streamlit.app/"   # <-- set after deployment
 VAPID_PRIVATE = "../secrets/private_key.pem"
 VAPID_CLAIMS = {"sub": "mailto:lfayach@gmail.com"}   # <-- your email
+AUTO_CLOSE_HOUR = 12   # local time; mornings still open after this get auto-closed
 
 def next_deadline():
     """Earliest moment at which someone will become eligible for a check-in."""
@@ -46,6 +47,35 @@ def next_deadline():
                 pass
         deadlines.append(deadline)
     return min(deadlines) if deadlines else None
+
+def close_orphan_sessions():
+    """Auto-close today's unfinished mornings (participant never tapped an end button)."""
+    now_local = datetime.now().astimezone()
+    if now_local.hour < AUTO_CLOSE_HOUR:
+        return                                    # morning window still open
+    for uid in sheets_client.load_users():
+        if sheets_client.load_today_session(uid):
+            continue                              # already closed (by user or earlier run)
+        events = sheets_client.load_today_events(uid)
+        if len(events) < 3:
+            continue                              # raw-only tier: keep events, no session row
+        try:
+            t0 = datetime.fromisoformat(str(events[0]["ts_utc"]))
+            t1 = datetime.fromisoformat(str(events[-1]["ts_utc"]))
+            duration = round((t1 - t0).total_seconds() / 60, 1)
+        except Exception:
+            duration = ""
+        sheets_client.append_session({
+            "session_id": f"{uid}_{date.today().isoformat()}",
+            "user_id": uid,
+            "session_date": date.today().isoformat(),
+            "n_events": len(events),
+            "chain": ">".join(str(e["activity_id"]) for e in events),
+            "duration_min": duration,
+            "complete": False,
+            "closed_by": "auto",
+        })
+        print(f"Auto-closed orphan session for {uid} ({len(events)} events)")
 
 
 def check():
@@ -105,6 +135,7 @@ if __name__ == "__main__":
         print("Reminder service running (deadline-driven). Ctrl+C to stop.", flush=True)
         while True:
             check()
+            close_orphan_sessions()
             wake = next_deadline()
             if wake is None:
                 delay = 600                       # nobody mid-morning: rescan every 10 min
@@ -115,3 +146,4 @@ if __name__ == "__main__":
             time.sleep(delay)
     else:
         check()
+        close_orphan_sessions()

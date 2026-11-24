@@ -62,7 +62,8 @@ def append_session(row: dict):
     ws = _get_doc().worksheet("sessions")
     ws.append_row(
         [row["session_id"], row["user_id"], row["session_date"], row["n_events"],
-         row["chain"], row["duration_min"], row["complete"]],
+         row["chain"], row["duration_min"], row["complete"],
+         row.get("closed_by", "user")],
         value_input_option="RAW",
     )
 
