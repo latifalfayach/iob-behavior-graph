@@ -248,7 +248,7 @@ if session:
         st.markdown("<div style='margin-left:12px;color:#C9BBA6'>↓</div>",
                     unsafe_allow_html=True)
     try:
-        dm = float(session.get("duration_min", 0))
+        dm = float(str(session.get("duration_min", 0)).replace(",", "."))
         dur = f"{int(dm // 60)}h {int(dm % 60):02d}m" if dm >= 60 else f"{int(dm)} min"
         st.markdown(f"**Morning duration:** {dur}")
     except Exception:

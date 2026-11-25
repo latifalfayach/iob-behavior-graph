@@ -9,7 +9,7 @@ import sheets_client
 
 SILENCE_MIN = 15        # quiet this long -> send a check-in
 REMIND_EVERY_MIN = 15   # never check in more often than this
-GIVE_UP_AFTER_H = 4     # stop after this many hours of silence
+GIVE_UP_AFTER_H = 12     # stop after this many hours of silence
 APP_URL = "https://iob-behavior-graph-ehfisophxqtinrgvxsxryr.streamlit.app/"   # <-- set after deployment
 VAPID_PRIVATE = "../secrets/private_key.pem"
 VAPID_CLAIMS = {"sub": "mailto:lfayach@gmail.com"}   # <-- your email
