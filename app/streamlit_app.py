@@ -169,7 +169,7 @@ if st.session_state.get("just_created"):
                    use_container_width=True)
     st.caption("📱 iPhone: on the page that opens, tap **Share → Add to Home Screen** first, "
                "then tap Enable. Your ID is already filled in — no typing needed.")
-    if st.button("🌅 Continue to the app", type="primary", use_container_width=True):
+    if st.button("🌅 Continue to the app", use_container_width=True):
         st.session_state.just_created = False
         st.rerun()
     st.stop()
@@ -312,7 +312,7 @@ else:
     # Two ways to end the morning
     end_col1, end_col2 = st.columns(2)
     with end_col1:
-        st.button("🏢  I'm at work", type="primary", use_container_width=True,
+        st.button("🏢  I'm at work", use_container_width=True,
                   on_click=finish_morning, args=("arrive_work",))
     with end_col2:
         st.button("🏠  Staying home today", use_container_width=True,
