@@ -1,21 +1,22 @@
-"""Morning Companion — calm, one-question-at-a-time UI (replaces the form-style v1)."""
+"""Morning Companion — calm, companion-style UI with device-linked anonymous IDs."""
+import re
 import time
 import uuid
 from datetime import datetime, timezone, date
 
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
+from streamlit_local_storage import LocalStorage
 
 from activities import ACTIVITIES, ACTIVITY_BY_ID
 import sheets_client
-from streamlit_local_storage import LocalStorage
 
 # ---------------- config ----------------
-INACTIVITY_MIN = 12       # gentle check-in appears after this many quiet minutes
+INACTIVITY_MIN = 12       # gentle in-page check-in after this many quiet minutes
 AUTOREFRESH_MS = 60_000   # page quietly refreshes once a minute (no push needed)
 N_SUGGESTIONS = 3         # "What's next?" shows this many likely activities
-PWA_URL = "https://latifalfayach.github.io/iob-behavior-graph/pwa/"
-
+APP_URL = "https://iob-behavior-graph-ehfisophxqtinrgvxsxryr.streamlit.app/"            # <-- your deployed app URL
+PWA_URL = "https://latifalfayach.github.io/iob-behavior-graph/pwa/"  # <-- your GitHub Pages URL
 
 STORY_VERBS = {
     "wake_up": "You woke up", "phone_bed": "Checked your phone",
@@ -27,6 +28,8 @@ STORY_VERBS = {
     "commute": "Commute", "arrive_work": "Arrived at work",
     "staying_home": "Stayed home today",
 }
+
+END_IDS = {a["id"] for a in ACTIVITIES if a["category"] == "end"}
 
 st.set_page_config(page_title="Morning Companion", page_icon="🌅")
 
@@ -60,7 +63,7 @@ def parse_ts(value):
         return None
 
 
-# ---------------- participant (device-linked ID, no public list) ----------------
+# ============ participant (device-linked ID, no public list) ============
 try:
     users = sheets_client.load_users()
 except Exception as e:
@@ -69,18 +72,6 @@ except Exception as e:
 
 localS = LocalStorage()
 stored_id = (localS.getItem("participant_id") or "").strip().upper()
-
-# Wait briefly for browser storage to load before offering any registration option.
-# On a linked device this finds the ID and the welcome screen never appears.
-if st.session_state.get("user_id") is None and not stored_id:
-    checks = st.session_state.get("ls_checks", 0)
-    if checks < 2:
-        st.session_state.ls_checks = checks + 1
-        st.info("Loading your profile…")
-        time.sleep(0.35)
-        st.rerun()
-else:
-    st.session_state.ls_checks = 0
 
 if "user_id" not in st.session_state:
     st.session_state.user_id = None
@@ -92,13 +83,27 @@ if st.query_params.get("reset") == "1":
     st.query_params.clear()
     st.rerun()
 
+# Sanitize ?id= — anything that isn't a real ID format ({USER_ID}, garbage) is dropped
 qp_id = (st.query_params.get("id", "") or "").strip().upper()
+if qp_id and not re.fullmatch(r"U\d{3}", qp_id):
+    qp_id = ""
+    st.query_params.clear()
 
 # A personal link for a DIFFERENT ID is rejected on a linked device
 if qp_id and stored_id and qp_id != stored_id:
     st.warning(f"🔒 This device is already linked to **{stored_id}** — "
                f"the ID **{qp_id}** isn't associated with this device.")
     qp_id = ""
+
+# Loading gate: wait for browser storage before offering any registration option,
+# so a linked device never sees "Create my ID", even for a moment.
+if st.session_state.user_id is None and not stored_id and not qp_id:
+    checks = st.session_state.get("ls_checks", 0)
+    if checks < 3:
+        st.session_state.ls_checks = checks + 1
+        st.info("Loading your profile…")
+        time.sleep(0.5)
+        st.rerun()
 
 # 1) Device already linked -> automatic login
 if st.session_state.user_id is None and stored_id:
@@ -115,7 +120,9 @@ if st.session_state.user_id is None and qp_id:
         localS.setItem("participant_id", qp_id)
         st.rerun()
     else:
-        st.error(f"ID {qp_id} not found — check your personal link, or log in below.")
+        st.query_params.clear()
+        st.warning(f"The ID **{qp_id}** doesn't exist (old link?) — "
+                   "log in or create a new ID below.")
 
 # 3) First-ever visit on this device: create a new ID or type an existing one
 if st.session_state.user_id is None:
@@ -123,11 +130,15 @@ if st.session_state.user_id is None:
     choice = st.radio("Are you…", ["A new participant", "A returning participant"])
     if choice == "A new participant":
         st.caption("We'll create an anonymous ID for you — no name, no personal info.")
-        if st.button("✨ Create my ID", use_container_width=True):
+        if st.session_state.get("creating"):
+            st.info("Creating your ID…")
+        elif st.button("✨ Create my ID", use_container_width=True):
+            st.session_state.creating = True          # lock BEFORE the Sheet call
             new_id = sheets_client.create_user()
             localS.setItem("participant_id", new_id)
             st.session_state.user_id = new_id
             st.session_state.just_created = True
+            st.session_state.creating = False
             st.rerun()
     else:
         if not users:
@@ -146,21 +157,24 @@ if st.session_state.user_id is None:
 user_id = st.session_state.user_id
 st.caption(f"🔒 This device is linked to **{user_id}**")
 
-# One-time setup screen: offer reminder setup with the ID pre-linked
+# One-time setup screen after ID creation
 if st.session_state.get("just_created"):
     st.markdown(f"## 🎉 Welcome, {user_id}!")
-    st.write("Your anonymous ID is ready. One last **optional** step — "
-             "get a gentle reminder if your morning goes quiet:")
+    st.markdown("### 🔗 Your personal link")
+    st.write("Bookmark this on your phone — it opens the app already logged in as you:")
+    st.code(f"{APP_URL}?id={user_id}")
+    st.write("One last **optional** step — get a gentle reminder if your morning goes quiet:")
     st.link_button("🔔 Enable gentle reminders",
                    f"{PWA_URL}?id={user_id}",
                    use_container_width=True)
     st.caption("📱 iPhone: on the page that opens, tap **Share → Add to Home Screen** first, "
                "then tap Enable. Your ID is already filled in — no typing needed.")
-    if st.button("🌅 Continue to the app", use_container_width=True):
+    if st.button("🌅 Continue to the app", type="primary", use_container_width=True):
         st.session_state.just_created = False
         st.rerun()
     st.stop()
 
+# Returning participants who never set up reminders
 with st.expander("🔔 Not getting reminders yet?"):
     st.link_button("Enable gentle reminders",
                    f"{PWA_URL}?id={user_id}",
@@ -200,20 +214,13 @@ def log_activity(activity_id):
     chain.append(event)
 
 
-END_IDS = {a["id"] for a in ACTIVITIES if a["category"] == "end"}
-
 def finish_morning(end_activity):
-    already_ended = bool(chain and chain[-1].get("activity_id") in END_IDS)
-    min_needed = 3 if already_ended else 2
-
-    if len(chain) < min_needed:
+    if chain and chain[-1].get("activity_id") not in END_IDS:
+        log_activity(end_activity)
+    if len(chain) < 3:
         st.toast("Log a few activities first 🌱")
         return
-
-    if not already_ended:
-        log_activity(end_activity)
-    today_chain = [e for e in chain if str(e.get("session_date", "")) == today] or chain
-    t0, t1 = parse_ts(today_chain[0]["ts_utc"]), parse_ts(today_chain[-1]["ts_utc"])
+    t0, t1 = parse_ts(chain[0]["ts_utc"]), parse_ts(chain[-1]["ts_utc"])
     row = {
         "session_id": f"{user_id}_{today}",
         "user_id": user_id,
@@ -222,6 +229,7 @@ def finish_morning(end_activity):
         "chain": ">".join(e["activity_id"] for e in chain),
         "duration_min": round((t1 - t0).total_seconds() / 60, 1) if t0 and t1 else "",
         "complete": True,
+        "closed_by": "user",
     }
     sheets_client.append_session(row)
     st.session_state.session = row
@@ -248,7 +256,7 @@ if session:
         st.markdown("<div style='margin-left:12px;color:#C9BBA6'>↓</div>",
                     unsafe_allow_html=True)
     try:
-        dm = float(str(session.get("duration_min", 0)).replace(",", "."))
+        dm = float(session.get("duration_min", 0))
         dur = f"{int(dm // 60)}h {int(dm % 60):02d}m" if dm >= 60 else f"{int(dm)} min"
         st.markdown(f"**Morning duration:** {dur}")
     except Exception:
@@ -291,9 +299,9 @@ else:
     # What's next? — a few likely activities, not the whole taxonomy
     done_ids = {e["activity_id"] for e in chain}
     remaining = [a for a in ACTIVITIES
-             if a["id"] not in done_ids
-             and a["id"] != "wake_up"
-             and a["category"] != "end"]
+                 if a["id"] not in done_ids
+                 and a["id"] != "wake_up"
+                 and a["category"] != "end"]
     st.markdown("#### What's next?")
     for act in remaining[:N_SUGGESTIONS]:
         st.button(f"{act['icon']}  {act['label']}", key=f"next_{act['id']}",
@@ -301,11 +309,14 @@ else:
     with st.expander("＋ Something else"):
         activity_grid(remaining[N_SUGGESTIONS:], "more")
 
+    # Two ways to end the morning
     end_col1, end_col2 = st.columns(2)
     with end_col1:
-        st.button("🏢  I'm at work", use_container_width=True, on_click=finish_morning, args=("arrive_work",))
+        st.button("🏢  I'm at work", type="primary", use_container_width=True,
+                  on_click=finish_morning, args=("arrive_work",))
     with end_col2:
-        st.button("🏠  Staying home today", use_container_width=True, on_click=finish_morning, args=("staying_home",))
+        st.button("🏠  Staying home today", use_container_width=True,
+                  on_click=finish_morning, args=("staying_home",))
 
     # Journey
     st.markdown("---")
