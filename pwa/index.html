@@ -22,7 +22,7 @@
   <p class="hint">Your ID is already filled in — just tap Enable and allow notifications.</p>
   <input id="uid" placeholder="Your ID — e.g. U001">
   <button class="primary" onclick="enablePush()">🔔 Enable gentle reminders</button>
-  <button onclick="location.href='https://iob-behavior-graph-ehfisophxqtinrgvxsxryr.streamlit.app/?id={user_id}'">🌅 Open the app</button>
+  <button onclick="openApp()">🌅 Open the app</button>
   <p id="status" class="hint"></p>
   <p class="hint">📱 iPhone: tap Share → <b>Add to Home Screen</b> first, then enable reminders.</p>
 
@@ -54,6 +54,12 @@ function b64ToUint8(b64) {
   const pad = "=".repeat((4 - b64.length % 4) % 4);
   const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
   return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+function openApp() {
+  const uid = document.getElementById("uid").value.trim().toUpperCase();
+  const base = "https://iob-behavior-graph-ehfisophxqtinrgvxsxryr.streamlit.app";
+  location.href = /^U\d{3}$/.test(uid) ? `${base}?id=${uid}` : base;
 }
 
 async function enablePush() {
