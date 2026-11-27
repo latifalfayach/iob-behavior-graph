@@ -1,9 +1,11 @@
 """Morning Companion — calm, companion-style UI with device-linked anonymous IDs."""
+import io
 import re
 import time
 import uuid
 from datetime import datetime, timezone, date
 
+import qrcode
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 from streamlit_local_storage import LocalStorage
@@ -15,8 +17,8 @@ import sheets_client
 INACTIVITY_MIN = 12       # gentle in-page check-in after this many quiet minutes
 AUTOREFRESH_MS = 60_000   # page quietly refreshes once a minute (no push needed)
 N_SUGGESTIONS = 3         # "What's next?" shows this many likely activities
-APP_URL = "https://iob-behavior-graph-ehfisophxqtinrgvxsxryr.streamlit.app/"            # <-- your deployed app URL
-PWA_URL = "https://latifalfayach.github.io/iob-behavior-graph/pwa/"  # <-- your GitHub Pages URL
+APP_URL = "https://iob-behavior-graph-ehfisophxqtinrgvxsxryr.streamlit.app"          
+PWA_URL = "https://latifalfayach.github.io/iob-behavior-graph/pwa/"  
 
 STORY_VERBS = {
     "wake_up": "You woke up", "phone_bed": "Checked your phone",
@@ -54,6 +56,12 @@ div.stButton > button[kind="primary"]:hover,
 div.stButton > button[data-testid="stBaseButton-primary"]:hover {
     background:#D68A20; color:#FFFFFF; border:none;
 }
+
+.card {
+    background:#FFFFFF; border-radius:18px; padding:26px; text-align:center;
+    border:1px solid #EFE7DA; box-shadow:0 2px 10px rgba(0,0,0,.05); margin:14px 0;
+}
+.journey { color:#6B6259; line-height:1.9; }
 </style>""", unsafe_allow_html=True)
 
 # Quiet refresh so elapsed time and the check-in update while the page stays open
@@ -71,7 +79,7 @@ def parse_ts(value):
         return None
 
 
-# ============ participant (device-linked ID, no public list) ============
+# ============ participant (token-based, device-bound identity) ============
 try:
     users = sheets_client.load_users()
 except Exception as e:
@@ -91,21 +99,31 @@ if st.query_params.get("reset") == "1":
     st.query_params.clear()
     st.rerun()
 
-# Sanitize ?id= — anything that isn't a real ID format ({USER_ID}, garbage) is dropped
+# Personal link: secret token (preferred) or legacy raw ID (old links still work)
+qp_token = (st.query_params.get("token", "") or "").strip()
 qp_id = (st.query_params.get("id", "") or "").strip().upper()
-if qp_id and not re.fullmatch(r"U\d{3}", qp_id):
-    qp_id = ""
-    st.query_params.clear()
+link_uid, link_token = None, None
 
-# A personal link for a DIFFERENT ID is rejected on a linked device
-if qp_id and stored_id and qp_id != stored_id:
+if qp_token:
+    link_uid = sheets_client.user_for_token(qp_token)
+    if link_uid:
+        link_token = qp_token
+    else:
+        st.query_params.clear()
+        st.warning("This link is invalid or expired — log in or create a new ID below.")
+elif qp_id and re.fullmatch(r"U\d{3}", qp_id):
+    link_uid = qp_id
+elif qp_id:
+    st.query_params.clear()      # garbage like {USER_ID}
+
+# A personal link for a DIFFERENT participant is rejected on a linked device
+if link_uid and stored_id and link_uid != stored_id:
     st.warning(f"🔒 This device is already linked to **{stored_id}** — "
-               f"the ID **{qp_id}** isn't associated with this device.")
-    qp_id = ""
+               "this link belongs to someone else.")
+    link_uid, link_token = None, None
 
-# Loading gate: wait for browser storage before offering any registration option,
-# so a linked device never sees "Create my ID", even for a moment.
-if st.session_state.user_id is None and not stored_id and not qp_id:
+# Loading gate: wait for browser storage before offering any registration option
+if st.session_state.user_id is None and not stored_id and not link_uid:
     checks = st.session_state.get("ls_checks", 0)
     if checks < 3:
         st.session_state.ls_checks = checks + 1
@@ -121,16 +139,12 @@ if st.session_state.user_id is None and stored_id:
     else:
         st.error(f"Your saved ID {stored_id} was not found — please contact the researcher.")
 
-# 2) Personal link on an unlinked device -> login + link this device
-if st.session_state.user_id is None and qp_id:
-    if qp_id in users:
-        st.session_state.user_id = qp_id
-        localS.setItem("participant_id", qp_id)
-        st.rerun()
-    else:
-        st.query_params.clear()
-        st.warning(f"The ID **{qp_id}** doesn't exist (old link?) — "
-                   "log in or create a new ID below.")
+# 2) Personal link (QR code / token / legacy id) -> login + link this device
+if st.session_state.user_id is None and link_uid:
+    st.session_state.user_id = link_uid
+    st.session_state.token = link_token          # None for legacy ?id= links
+    localS.setItem("participant_id", link_uid)
+    st.rerun()
 
 # 3) First-ever visit on this device: create a new ID or type an existing one
 if st.session_state.user_id is None:
@@ -142,9 +156,10 @@ if st.session_state.user_id is None:
             st.info("Creating your ID…")
         elif st.button("✨ Create my ID", use_container_width=True):
             st.session_state.creating = True          # lock BEFORE the Sheet call
-            new_id = sheets_client.create_user()
+            new_id, token = sheets_client.create_user()
             localS.setItem("participant_id", new_id)
             st.session_state.user_id = new_id
+            st.session_state.token = token
             st.session_state.just_created = True
             st.session_state.creating = False
             st.rerun()
@@ -157,6 +172,7 @@ if st.session_state.user_id is None:
                 if typed in users:
                     localS.setItem("participant_id", typed)
                     st.session_state.user_id = typed
+                    st.session_state.token = None
                     st.rerun()
                 else:
                     st.error("ID not found — check the spelling, or choose 'A new participant'.")
@@ -164,33 +180,39 @@ if st.session_state.user_id is None:
 
 user_id = st.session_state.user_id
 st.caption(f"🔒 This device is linked to **{user_id}**")
-# Keep the ID in the URL so any bookmark / home-screen icon / reopened tab
-# always carries the identity — no dependence on browser storage.
-if st.query_params.get("id") != user_id:
-    st.query_params["id"] = user_id
+
+# Keep the personal token in the URL so bookmarks / home-screen icons carry the
+# identity. The raw ID is never exposed in the URL.
+_tok = st.session_state.get("token")
+if _tok and st.query_params.get("token") != _tok:
+    st.query_params["token"] = _tok
+
+# PWA link: token (security) + id (display) when available
+_pwa_link = (f"{PWA_URL}?token={_tok}&id={user_id}" if _tok
+             else f"{PWA_URL}?id={user_id}")
 
 # One-time setup screen after ID creation
 if st.session_state.get("just_created"):
     st.markdown(f"## 🎉 Welcome, {user_id}!")
-    st.markdown("### 🔗 Your personal link")
-    st.write("Bookmark this on your phone — it opens the app already logged in as you:")
-    st.code(f"{APP_URL}?id={user_id}")
+    st.markdown("### 🔗 Your personal access")
+    st.write("This QR code **is** your login — screenshot it or save the image. "
+             "Anyone who scans it opens the app as you, so keep it private:")
+    _buf = io.BytesIO()
+    qrcode.make(f"{APP_URL}?token={st.session_state.token}").save(_buf, format="PNG")
+    st.image(_buf.getvalue(), width=240)
+    st.code(f"{APP_URL}?token={st.session_state.token}")
     st.write("One last **optional** step — get a gentle reminder if your morning goes quiet:")
-    st.link_button("🔔 Enable gentle reminders",
-                   f"{PWA_URL}?id={user_id}",
-                   use_container_width=True)
+    st.link_button("🔔 Enable gentle reminders", _pwa_link, use_container_width=True)
     st.caption("📱 iPhone: on the page that opens, tap **Share → Add to Home Screen** first, "
-               "then tap Enable. Your ID is already filled in — no typing needed.")
-    if st.button("🌅 Continue to the app",type="primary", use_container_width=True):
+               "then tap Enable.")
+    if st.button("🌅 Continue to the app", type="primary", use_container_width=True):
         st.session_state.just_created = False
         st.rerun()
     st.stop()
 
 # Returning participants who never set up reminders
 with st.expander("🔔 Not getting reminders yet?"):
-    st.link_button("Enable gentle reminders",
-                   f"{PWA_URL}?id={user_id}",
-                   use_container_width=True)
+    st.link_button("Enable gentle reminders", _pwa_link, use_container_width=True)
 
 # Load today's data once per participant (survives page refreshes)
 if st.session_state.get("loaded_for") != user_id:

@@ -1,20 +1,21 @@
-# Fixed activity taxonomy (v1) — must match the 'activities' tab in the Sheet
+"""Closed 15-activity taxonomy for the morning-routine domain."""
+
 ACTIVITIES = [
-    {"id": "wake_up",     "label": "Wake up",                "icon": "⏰", "category": "start"},
-    {"id": "phone_bed",   "label": "Check phone in bed",     "icon": "📱", "category": "digital"},
-    {"id": "bathroom",    "label": "Bathroom / hygiene",     "icon": "🪥", "category": "hygiene"},
-    {"id": "shower",      "label": "Shower",                 "icon": "🚿", "category": "hygiene"},
-    {"id": "exercise",    "label": "Exercise / stretching",  "icon": "🏃", "category": "health"},
-    {"id": "dressed",     "label": "Get dressed",            "icon": "👕", "category": "routine"},
-    {"id": "coffee",      "label": "Make coffee / tea",      "icon": "☕", "category": "food"},
-    {"id": "breakfast",   "label": "Eat breakfast",          "icon": "🍳", "category": "food"},
-    {"id": "news_social", "label": "News / social media",    "icon": "📰", "category": "digital"},
-    {"id": "prep_bag",    "label": "Prepare bag / keys",     "icon": "🎒", "category": "routine"},
-    {"id": "meditate",    "label": "Meditate / read",        "icon": "🧘", "category": "health"},
-    {"id": "leave_home",  "label": "Leave home",             "icon": "🚪", "category": "transition"},
-    {"id": "commute",     "label": "Commute",                "icon": "🚌", "category": "transition"},
-    {"id": "arrive_work", "label": "Arrive at work/school",  "icon": "🏢", "category": "end"},
-    {"id": "staying_home", "label": "Staying home today",   "icon": "🏠", "category": "end"},
+    {"id": "wake_up",     "label": "Wake up",                 "icon": "🌅", "category": "start"},
+    {"id": "phone_bed",   "label": "Phone in bed",            "icon": "📱", "category": "start"},
+    {"id": "bathroom",    "label": "Bathroom / hygiene",      "icon": "🚿", "category": "hygiene"},
+    {"id": "shower",      "label": "Shower",                  "icon": "🛁", "category": "hygiene"},
+    {"id": "exercise",    "label": "Exercise / stretching",   "icon": "🤸", "category": "body"},
+    {"id": "dressed",     "label": "Get dressed",             "icon": "👕", "category": "prepare"},
+    {"id": "coffee",      "label": "Coffee / tea",            "icon": "☕", "category": "food"},
+    {"id": "breakfast",   "label": "Breakfast",               "icon": "🍳", "category": "food"},
+    {"id": "news_social", "label": "News / social media",     "icon": "📰", "category": "mind"},
+    {"id": "prep_bag",    "label": "Prepare bag",             "icon": "🎒", "category": "prepare"},
+    {"id": "meditate",    "label": "Meditation / reading",    "icon": "🧘", "category": "mind"},
+    {"id": "leave_home",  "label": "Leave home",              "icon": "🚪", "category": "transition"},
+    {"id": "commute",     "label": "Commute",                 "icon": "🚌", "category": "transition"},
+    {"id": "arrive_work", "label": "Arrive at work",          "icon": "🏢", "category": "end"},
+    {"id": "staying_home","label": "Staying home today",      "icon": "🏠", "category": "end"},
 ]
 
 ACTIVITY_BY_ID = {a["id"]: a for a in ACTIVITIES}

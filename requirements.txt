@@ -1,7 +1,9 @@
 streamlit
 gspread
+google-auth
 pandas
 streamlit-autorefresh
-cryptography>=43.0.0
-google-auth>=2.35.0
 streamlit-local-storage
+requests
+pywebpush
+qrcode[pil]

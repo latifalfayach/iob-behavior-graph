@@ -3,111 +3,132 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#F0A840">
+<title>Morning Companion — Reminders</title>
 <link rel="manifest" href="manifest.json">
-<title>Morning Companion</title>
+<meta name="theme-color" content="#FAF7F2">
 <style>
-  body { font-family: system-ui; background:#FAF7F2; color:#3B342C;
-         max-width: 420px; margin: 40px auto; padding: 0 20px; text-align:center; }
-  button { width:100%; padding:16px; margin:8px 0; border-radius:14px;
-           border:1px solid #EFE7DA; background:#fff; font-size:1.05rem; cursor:pointer; }
-  button.primary { background:#F0A840; border:none; color:#fff; font-weight:600; }
-  input { width:100%; padding:14px; border-radius:14px; border:1px solid #EFE7DA;
-          font-size:1.05rem; text-align:center; box-sizing:border-box; }
-  .hint { color:#8A7F72; font-size:.9rem; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+         background:#FAF7F2; color:#3B342C; margin:0;
+         display:flex; justify-content:center; padding:24px; }
+  .card { background:#fff; border:1px solid #EFE7DA; border-radius:18px;
+          box-shadow:0 2px 10px rgba(0,0,0,.05); padding:28px;
+          max-width:420px; width:100%; margin-top:24px; text-align:center; }
+  h1 { font-size:1.4rem; } p { color:#6B6259; line-height:1.6; }
+  button, .btn { display:block; width:100%; border:none; border-radius:14px;
+          padding:14px; font-size:1.05rem; margin:10px 0; cursor:pointer;
+          text-decoration:none; box-sizing:border-box; text-align:center; }
+  .primary { background:#F0A840; color:#fff; font-weight:600; }
+  .ghost { background:#fff; color:#3B342C; border:1px solid #EFE7DA; }
+  input { width:100%; padding:12px; border:1px solid #EFE7DA; border-radius:12px;
+          font-size:1.05rem; box-sizing:border-box; text-align:center; }
+  .ok { color:#3E7C4F; } .err { color:#B3402E; }
+  small { color:#A29382; }
 </style>
 </head>
 <body>
+<div class="card">
   <h1>☀️ Morning Companion</h1>
-  <p class="hint">Your ID is already filled in — just tap Enable and allow notifications.</p>
-  <input id="uid" placeholder="Your ID — e.g. U001">
-  <button class="primary" onclick="enablePush()">🔔 Enable gentle reminders</button>
-  <button onclick="openApp()">🌅 Open the app</button>
-  <p id="status" class="hint"></p>
-  <p class="hint">📱 iPhone: tap Share → <b>Add to Home Screen</b> first, then enable reminders.</p>
+  <p>Enable a <b>gentle reminder</b>: if your morning goes quiet, we'll nudge you once in a while. Nothing else — no spam, ever.</p>
+
+  <div id="step-id">
+    <p>Your participant ID</p>
+    <input id="uid" placeholder="e.g. U001" autocomplete="off">
+    <button class="primary" onclick="saveId()">Continue</button>
+  </div>
+
+  <div id="step-push" style="display:none">
+    <p id="who"></p>
+    <button class="primary" id="enableBtn" onclick="enablePush()">🔔 Enable gentle reminders</button>
+    <p><small id="iosHint" style="display:none">
+      On iPhone: first tap <b>Share → Add to Home Screen</b>, then open the app
+      from your home screen and tap Enable.
+    </small></p>
+    <p id="status"></p>
+  </div>
+
+  <div id="step-done" style="display:none">
+    <p class="ok">✅ All set! You'll get a gentle nudge if your morning goes quiet.</p>
+    <button class="primary" onclick="openApp()">🌅 Open the app</button>
+  </div>
+</div>
 
 <script>
-// Pre-fill the ID from the Streamlit handoff (?id=U001) or a previous visit,
-// and LOCK it if this device is already linked to a participant.
-(function () {
-  const fromUrl = new URLSearchParams(window.location.search).get("id");
-  const saved = localStorage.getItem("participant_id");
-  const input = document.getElementById("uid");
-  if (saved) {
-    input.value = saved;
-    input.readOnly = true;
-    input.style.background = "#F3EDE3";
-    document.querySelector(".hint").textContent =
-      "🔒 This device is linked to " + saved + " — just tap Enable.";
-    if (fromUrl && fromUrl.toUpperCase() !== saved) {
-      document.getElementById("status").textContent =
-        "The ID " + fromUrl.toUpperCase() + " isn't associated with this device.";
-    }
-  } else if (fromUrl) {
-    input.value = fromUrl.toUpperCase();
-  }
-})();
-const VAPID_PUBLIC_KEY = "BC7Mhlxj7HjsRsHxD5H2R3cyfCcMDtN4kQDA2nbnG2ZfKsEHyShND9kRFmhg89JQFTFu2HP5Jcxx7FaHEoJ6wh8";
-const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbym5AIaUBdu1dQhiAFkf0kOj5Ovc0T1yQpHjrS5doK1Vgu5EcN7wVL8ZjgN57xm3tdr/exec";
+const APP_URL = "https://iob-behavior-graph-ehfisophxqtinrgvxsxryr.streamlit.app";   
+const VAPID_PUBLIC_KEY = "BC7Mhlxj7HjsRsHxD5H2R3cyfCcMDtN4kQDA2nbnG2Z8SjFSqSJ6DYAcBJrNGN76hEhcij5vtyJK5G819CvV7Fm";   
+const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbym5AIaUBdu1dQhiAFkf0kOj5Ovc0T1yQpHjrS5doK1Vgu5EcN7wVL8ZjgN57xm3tdr/exec";  
 
-function b64ToUint8(b64) {
-  const pad = "=".repeat((4 - b64.length % 4) % 4);
-  const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
+// Token arrives via ?token=... (from the app's link) — it is the login secret.
+// Keep it in this origin's localStorage so reopening the PWA stays linked.
+const qp = new URLSearchParams(location.search);
+let token = qp.get("token") || localStorage.getItem("participant_token") || "";
+if (qp.get("token")) localStorage.setItem("participant_token", token);
+let uid = qp.get("id") || localStorage.getItem("participant_uid") || "";
+
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isStandalone = matchMedia("(display-mode: standalone)").matches
+                     || navigator.standalone === true;
+
+function show(step) {
+  for (const s of ["step-id", "step-push", "step-done"])
+    document.getElementById(s).style.display = (s === step) ? "block" : "none";
+}
+
+if (uid) {
+  document.getElementById("who").textContent = "Linked to " + uid + " 🔒";
+  if (isIOS && !isStandalone) document.getElementById("iosHint").style.display = "block";
+  show("step-push");
+} else {
+  show("step-id");
+}
+
+function saveId() {
+  uid = document.getElementById("uid").value.trim().toUpperCase();
+  if (!/^U\d{3}$/.test(uid)) {
+    document.getElementById("uid").style.borderColor = "#B3402E";
+    return;
+  }
+  localStorage.setItem("participant_uid", uid);
+  document.getElementById("who").textContent = "Linked to " + uid + " 🔒";
+  if (isIOS && !isStandalone) document.getElementById("iosHint").style.display = "block";
+  show("step-push");
+}
+
+function b64ToUint8(base64) {
+  const pad = "=".repeat((4 - base64.length % 4) % 4);
+  const raw = atob((base64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
   return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
 }
 
-function openApp() {
-  const uid = document.getElementById("uid").value.trim().toUpperCase();
-  const base = "https://iob-behavior-graph-ehfisophxqtinrgvxsxryr.streamlit.app";
-  location.href = /^U\d{3}$/.test(uid) ? `${base}?id=${uid}` : base;
-}
-
 async function enablePush() {
-  const uid = document.getElementById("uid").value.trim().toUpperCase();
   const status = document.getElementById("status");
-  if (!/^U\d{3}$/.test(uid)) { status.textContent = "Please enter a valid ID like U001"; return; }
-  const saved = localStorage.getItem("participant_id");
-  if (saved && uid !== saved) {
-    status.textContent = "🔒 This device is linked to " + saved +
-                         " — " + uid + " isn't associated with this device.";
-    return;
-  }
-  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-    status.textContent = "This browser doesn't support push reminders."; return;
-  }
-  const reg = await navigator.serviceWorker.register("sw.js");
-  const perm = await Notification.requestPermission();
-  if (perm !== "granted") { status.textContent = "Notifications were blocked — check browser settings."; return; }
-  const sub = await reg.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: b64ToUint8(VAPID_PUBLIC_KEY)
-  });
-
   try {
-    const res = await fetch(WEBHOOK_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ user_id: uid, subscription: sub.toJSON() })
+    if (!("serviceWorker" in navigator) || !("PushManager" in window))
+      throw new Error("Push is not supported in this browser.");
+    const reg = await navigator.serviceWorker.register("sw.js");
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") throw new Error("Notification permission was denied.");
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: b64ToUint8(VAPID_PUBLIC_KEY),
     });
-    const reply = (await res.text()).trim();
-    if (reply === "endpoint_taken") {
-      status.textContent = "⚠️ This device is already linked to another participant ID.";
-      return;
-    }
-    if (reply !== "ok") {
-      status.textContent = "⚠️ Could not register (" + reply + ").";
-      return;
-    }
-  } catch (err) {
     await fetch(WEBHOOK_URL, {
       method: "POST",
       mode: "no-cors",
       headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ user_id: uid, subscription: sub.toJSON() })
+      body: JSON.stringify({ user_id: uid, token: token, subscription: sub.toJSON() }),
     });
+    show("step-done");
+  } catch (e) {
+    status.className = "err";
+    status.textContent = "⚠️ " + e.message;
   }
-  localStorage.setItem("participant_id", uid);
-  status.textContent = "✅ Reminders enabled for " + uid + ". See you tomorrow morning!";
+}
+
+function openApp() {
+  // Always carry the personal credential back to the app (localStorage is NOT
+  // shared between github.io and streamlit.app origins).
+  location.href = token ? `${APP_URL}?token=${encodeURIComponent(token)}`
+                        : `${APP_URL}?id=${encodeURIComponent(uid)}`;
 }
 </script>
 </body>
