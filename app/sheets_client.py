@@ -53,7 +53,7 @@ def append_event(row: dict):
     ws.append_row(
         [row["event_id"], row["user_id"], row["session_date"], row["seq_index"],
          row["activity_id"], row["ts_utc"], row["local_time"], row["day_type"],
-         row["device"]],
+         row["device"], row.get("source", "live")],
         value_input_option="RAW",
     )
 
@@ -107,3 +107,13 @@ def update_push_reminder(user_id: str, iso_ts: str):
     ws = _get_doc().worksheet("push")
     cell = ws.find(user_id)
     ws.update_cell(cell.row, 4, iso_ts)
+
+def delete_today_events(user_id: str):
+    """Delete today's event rows for a user (used before a recap rewrite)."""
+    ws = _get_doc().worksheet("events")
+    today = date.today().isoformat()
+    rows = ws.get_all_values()
+    to_delete = [i for i, r in enumerate(rows[1:], start=2)
+                 if len(r) > 2 and r[1] == user_id and r[2] == today]
+    for i in reversed(to_delete):   # bottom-up so indices stay valid
+        ws.delete_rows(i)

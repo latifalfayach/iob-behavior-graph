@@ -156,6 +156,10 @@ if st.session_state.user_id is None:
 
 user_id = st.session_state.user_id
 st.caption(f"🔒 This device is linked to **{user_id}**")
+# Keep the ID in the URL so any bookmark / home-screen icon / reopened tab
+# always carries the identity — no dependence on browser storage.
+if st.query_params.get("id") != user_id:
+    st.query_params["id"] = user_id
 
 # One-time setup screen after ID creation
 if st.session_state.get("just_created"):
@@ -209,6 +213,7 @@ def log_activity(activity_id):
         "local_time": local.strftime("%H:%M:%S"),
         "day_type": day_type,
         "device": "web",
+        "source": "live",
     }
     sheets_client.append_event(event)
     chain.append(event)
@@ -263,18 +268,10 @@ if session:
         pass
     st.success("✨ Thanks for logging! See you tomorrow.")
 
-elif not chain:
-    # ---------- Welcome ----------
-    st.markdown(f"## ☀️ Good morning, {user_id}")
-    st.caption(date.today().strftime("%A · %B %d"))
-    st.markdown("#### Your morning is about to begin")
-    st.button("🌅  I just woke up", use_container_width=True,
-              on_click=log_activity, args=("wake_up",))
-    with st.expander("Already up? Log what you're doing"):
-        activity_grid(ACTIVITIES, "welcome")
-
-else:
-    # ---------- Morning in progress ----------
+elif st.session_state.get("mode") == "recap":
+    pass  # handled below
+elif chain:
+    # ---------- Live mode in progress (unchanged companion UI) ----------
     current = chain[-1]
     cur = ACTIVITY_BY_ID[current["activity_id"]]
     start = parse_ts(current.get("ts_utc"))
@@ -292,11 +289,9 @@ else:
         <div style="color:#8A7F72">{since_txt}</div>
     </div>""", unsafe_allow_html=True)
 
-    # Gentle inactivity check-in (only while the page is open)
     if elapsed is not None and elapsed >= INACTIVITY_MIN:
         st.info("☀️ Quick check-in — what are you up to?")
 
-    # What's next? — a few likely activities, not the whole taxonomy
     done_ids = {e["activity_id"] for e in chain}
     remaining = [a for a in ACTIVITIES
                  if a["id"] not in done_ids
@@ -309,16 +304,14 @@ else:
     with st.expander("＋ Something else"):
         activity_grid(remaining[N_SUGGESTIONS:], "more")
 
-    # Two ways to end the morning
     end_col1, end_col2 = st.columns(2)
     with end_col1:
-        st.button("🏢  I'm at work", use_container_width=True,
+        st.button("🏢  I'm at work", type="primary", use_container_width=True,
                   on_click=finish_morning, args=("arrive_work",))
     with end_col2:
         st.button("🏠  Staying home today", use_container_width=True,
                   on_click=finish_morning, args=("staying_home",))
 
-    # Journey
     st.markdown("---")
     st.markdown("#### Your morning 🌅")
     lines = []
@@ -332,8 +325,160 @@ else:
     st.markdown("<div class='journey'>" + "<br>".join(lines) + "</div>",
                 unsafe_allow_html=True)
 
-    # Neutral progress — position along the routine, never judged
     order = [a["id"] for a in ACTIVITIES]
     furthest = max(order.index(e["activity_id"]) for e in chain)
     st.progress(furthest / (len(order) - 1))
     st.caption("You're getting there ☀️")
+
+    with st.expander("✏️ I forgot something — fix my morning"):
+        st.caption("Switch to recap: your logged times stay exact, "
+                    "you just add what you forgot.")
+        if st.button("Switch to recap mode", use_container_width=True):
+            st.session_state.mode = "recap"
+            st.session_state.recall = [e["activity_id"] for e in chain
+                                        if e["activity_id"] not in END_IDS]
+            # live timestamps become anchors of truth
+            st.session_state.recap_anchors = {
+                e["activity_id"]: str(e["ts_utc"]) for e in chain}
+            st.rerun()
+
+else:
+    # ---------- No data yet today: choose the mode ----------
+    mode = st.session_state.get("mode")
+
+    if mode is None:
+        st.markdown(f"## ☀️ Good morning, {user_id}")
+        st.caption(date.today().strftime("%A · %B %d"))
+        st.markdown("#### How do you want to log today?")
+        if st.button("⚡  Quick recap — 30 seconds", 
+                     use_container_width=True):
+            st.session_state.mode = "recap"
+            st.rerun()
+        st.caption("Tell me what you did this morning, in order. No timers, no pressure.")
+        if st.button("🌅  Log live as I go", use_container_width=True):
+            st.session_state.mode = "live"
+            st.rerun()
+        st.caption("Tap each activity as it happens — precise timestamps.")
+
+    elif mode == "live":
+        st.markdown(f"## ☀️ Good morning, {user_id}")
+        st.caption(date.today().strftime("%A · %B %d"))
+        st.markdown("#### Your morning is about to begin")
+        st.button("🌅  I just woke up", use_container_width=True,
+                  on_click=log_activity, args=("wake_up",))
+        with st.expander("Already up? Log what you're doing"):
+            activity_grid(ACTIVITIES, "welcome")
+
+    if st.session_state.get("mode") == "recap":
+        if True: # ---------- Quick recap (also reachable from live mode) ----------
+            from datetime import time as dtime
+
+            st.markdown(f"## ⚡ Quick recap, {user_id}")
+            st.caption("Tap your activities **in the order they happened**. Tap again to remove.")
+
+            if "recall" not in st.session_state:
+                st.session_state.recall = []
+
+            def toggle(act_id):
+                if act_id in st.session_state.recall:
+                    st.session_state.recall.remove(act_id)
+                else:
+                    st.session_state.recall.append(act_id)
+
+            # the chain being built
+            if st.session_state.recall:
+                parts = [f"{ACTIVITY_BY_ID[a]['icon']} {ACTIVITY_BY_ID[a]['label']}"
+                        for a in st.session_state.recall]
+                st.markdown(" → ".join(parts))
+            else:
+                st.info("Nothing selected yet — start with what you did first.")
+
+            # activity chips (no end activities here — chosen below)
+            core = [a for a in ACTIVITIES if a["category"] != "end"]
+            cols = st.columns(2)
+            for i, act in enumerate(core):
+                selected = act["id"] in st.session_state.recall
+                with cols[i % 2]:
+                    st.button(
+                        f"{'✓ ' if selected else ''}{act['icon']} {act['label']}",
+                        key=f"recall_{act['id']}"
+                        if selected else "secondary",
+                        use_container_width=True,
+                        on_click=toggle, args=(act["id"],),
+                    )
+
+            st.markdown("---")
+            wake_t = st.time_input("🌅 You woke up around…", dtime(7, 0))
+            end_choice = st.radio("Your morning ended with…",
+                                ["🏢 Arrived at work", "🏠 Stayed home"],
+                                horizontal=True)
+            end_t = st.time_input("…around", dtime(9, 0))
+
+            if st.button("✅ Save my morning", use_container_width=True):
+                recall = list(st.session_state.recall)
+                if "wake_up" not in recall:
+                    recall = ["wake_up"] + recall          # every morning starts here
+                if len(recall) < 3:
+                    st.toast("Pick at least 3 activities 🌱")
+                    st.stop()
+            end_id = "arrive_work" if "work" in end_choice else "staying_home"
+            full = recall + [end_id]
+            base = datetime.combine(date.today(), wake_t)
+            end_dt = datetime.combine(date.today(), end_t)
+            anchors = dict(st.session_state.get("recap_anchors", {}))
+
+            # Assign timestamps: live-logged activities keep their real time;
+            # new ones are interpolated between the surrounding anchors.
+            anchor_points = {}                       # position -> datetime
+            for pos, act_id in enumerate(full):
+                if act_id in anchors:
+                    anchor_points[pos] = datetime.fromisoformat(anchors[act_id])
+            anchor_points.setdefault(0, base)        # wake anchor
+            anchor_points.setdefault(len(full) - 1, end_dt)  # end anchor
+
+            ts_for = {}
+            marks = sorted(anchor_points)
+            for a, b in zip(marks, marks[1:]):
+                n_gap = b - a - 1
+                step = (anchor_points[b] - anchor_points[a]) / (n_gap + 1)
+                for pos in range(a, b + 1):
+                    ts_for[pos] = anchor_points[a] + step * (pos - a)
+
+            # Rewrite today's events atomically: delete old, insert merged
+            sheets_client.delete_today_events(user_id)
+            events = []
+            for i, act_id in enumerate(full):
+                ts = ts_for[i]
+                events.append({
+                    "event_id": str(uuid.uuid4()),
+                    "user_id": user_id,
+                    "session_date": today,
+                    "seq_index": i + 1,
+                    "activity_id": act_id,
+                    "ts_utc": ts.isoformat(timespec="seconds") + "+00:00"
+                              if ts.tzinfo is None else ts.isoformat(timespec="seconds"),
+                    "local_time": ts.strftime("%H:%M:%S"),
+                    "day_type": day_type,
+                    "device": "web",
+                    "source": "live" if act_id in anchors else "recall",
+                })
+                sheets_client.append_event(events[-1])
+
+            duration = (ts_for[len(full)-1] - ts_for[0]).total_seconds() / 60
+            row = {
+                "session_id": f"{user_id}_{today}",
+                "user_id": user_id,
+                "session_date": today,
+                "n_events": len(events),
+                "chain": ">".join(full),
+                "duration_min": round(duration, 1),
+                "complete": True,
+                "closed_by": "user",
+            }
+            sheets_client.append_session(row)
+            st.session_state.chain = events
+            st.session_state.session = row
+            st.session_state.recall = []
+            st.session_state.recap_anchors = {}
+            st.session_state.mode = None
+            st.rerun()

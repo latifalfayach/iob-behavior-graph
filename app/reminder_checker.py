@@ -13,7 +13,7 @@ GIVE_UP_AFTER_H = 4     # stop after this many hours of silence
 APP_URL = "https://iob-behavior-graph-ehfisophxqtinrgvxsxryr.streamlit.app/"   # <-- set after deployment
 VAPID_PRIVATE = "../secrets/private_key.pem"
 VAPID_CLAIMS = {"sub": "mailto:lfayach@gmail.com"}   # <-- your email
-AUTO_CLOSE_HOUR = 16   # local time; mornings still open after this get auto-closed
+AUTO_CLOSE_HOUR = 23   # local time; mornings still open after this get auto-closed
 
 def next_deadline():
     """Earliest moment at which someone will become eligible for a check-in."""
