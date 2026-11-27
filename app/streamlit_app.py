@@ -36,16 +36,24 @@ st.set_page_config(page_title="Morning Companion", page_icon="🌅")
 # Warm + calm + minimal styling
 st.markdown("""<style>
 .stApp { background-color:#FAF7F2; }
+
+/* default buttons: white cards */
 div.stButton > button {
     width:100%; border-radius:14px; border:1px solid #EFE7DA;
-    background:#FFFFFF; padding:0.8rem 1rem; font-size:1.05rem; text-align:left;
+    background:#FFFFFF; color:#3B342C;
+    padding:0.8rem 1rem; font-size:1.05rem; text-align:left;
 }
-div.stButton > button:hover { border-color:#F0A840; background:#FFF8EE; }
-.card {
-    background:#FFFFFF; border-radius:18px; padding:26px; text-align:center;
-    border:1px solid #EFE7DA; box-shadow:0 2px 10px rgba(0,0,0,.05); margin:14px 0;
+div.stButton > button:hover { border-color:#F0A840; background:#FFF8EE; color:#3B342C; }
+
+/* primary buttons: warm orange with white text */
+div.stButton > button[kind="primary"],
+div.stButton > button[data-testid="stBaseButton-primary"] {
+    background:#F0A840; color:#FFFFFF; border:none; font-weight:600;
 }
-.journey { color:#6B6259; line-height:1.9; }
+div.stButton > button[kind="primary"]:hover,
+div.stButton > button[data-testid="stBaseButton-primary"]:hover {
+    background:#D68A20; color:#FFFFFF; border:none;
+}
 </style>""", unsafe_allow_html=True)
 
 # Quiet refresh so elapsed time and the check-in update while the page stays open
@@ -173,7 +181,7 @@ if st.session_state.get("just_created"):
                    use_container_width=True)
     st.caption("📱 iPhone: on the page that opens, tap **Share → Add to Home Screen** first, "
                "then tap Enable. Your ID is already filled in — no typing needed.")
-    if st.button("🌅 Continue to the app", use_container_width=True):
+    if st.button("🌅 Continue to the app",type="primary", use_container_width=True):
         st.session_state.just_created = False
         st.rerun()
     st.stop()
